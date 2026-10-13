@@ -1,0 +1,55 @@
+{% extends 'layout.html' %}
+
+{% block title %}Referral Details{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2>Referral #{{ referral.referral_id }}</h2>
+    <p class="text-muted mb-0">Digital referral record and appointment history</p>
+  </div>
+  <a href="/patients/{{ referral.patient_id }}" class="btn btn-outline-primary">View Patient</a>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="card p-4">
+      <h4>Referral Summary</h4>
+      <dl class="row mt-3 mb-0">
+        <dt class="col-sm-5">Patient</dt>
+        <dd class="col-sm-7">{{ referral.patient.demographics.get('name', 'Unknown') }}</dd>
+        <dt class="col-sm-5">Status</dt>
+        <dd class="col-sm-7"><span class="badge bg-primary">{{ referral.status }}</span></dd>
+        <dt class="col-sm-5">Origin</dt>
+        <dd class="col-sm-7">{{ referral.origin_facility.name if referral.origin_facility else referral.origin_community_unit.name }}</dd>
+        <dt class="col-sm-5">Destination</dt>
+        <dd class="col-sm-7">{{ referral.destination_facility.name }}</dd>
+        <dt class="col-sm-5">Triage notes</dt>
+        <dd class="col-sm-7">{{ referral.triage_notes }}</dd>
+      </dl>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card p-4">
+      <h4>Appointments</h4>
+      <div class="table-responsive mt-3">
+        <table class="table table-striped">
+          <thead><tr><th>ID</th><th>Date</th><th>Booked</th><th></th></tr></thead>
+          <tbody>
+            {% for appointment in referral.appointments %}
+            <tr>
+              <td>#{{ appointment.appointment_id }}</td>
+              <td>{{ appointment.appointment_datetime }}</td>
+              <td>{{ 'Yes' if appointment.is_locked else 'No' }}</td>
+              <td><a href="/appointments/{{ appointment.appointment_id }}">View</a></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="text-muted text-center">No appointment slots found.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

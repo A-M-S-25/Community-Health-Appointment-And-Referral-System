@@ -1,0 +1,95 @@
+{% extends 'layout.html' %}
+
+{% block title %}Community Health Units Administration{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2 class="mb-0">Community Health Unit Administration</h2>
+    <p class="text-muted mb-0">Manage the geographical areas assigned to Community Health Promoters</p>
+  </div>
+  <a href="/admin" class="btn btn-outline-primary">Back to Dashboard</a>
+</div>
+
+<div class="card p-4 mb-4">
+  <h4>Onboard Community Health Unit</h4>
+  <form id="community-unit-form">
+    <div class="row g-3 mt-2">
+      <div class="col-md-6">
+        <label class="form-label">Unit Name</label>
+        <input id="unit-name" type="text" class="form-control" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Location</label>
+        <input id="unit-location" type="text" class="form-control" required>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-success mt-3">Create Community Health Unit</button>
+  </form>
+  <div id="unit-response" class="alert mt-3 d-none"></div>
+</div>
+
+<div class="card p-4">
+  <h4>Community Health Units</h4>
+  <div class="table-responsive mt-3">
+    <table class="table table-striped align-middle">
+      <thead><tr><th>ID</th><th>Name</th><th>Location</th><th>CHPs</th><th>Active</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for unit in units %}
+        <tr>
+          <td>{{ unit.community_unit_id }}</td>
+          <td>{{ unit.name }}</td>
+          <td>{{ unit.location }}</td>
+          <td>{{ unit.workers|length }}</td>
+          <td>{{ 'Yes' if unit.is_active else 'No' }}</td>
+          <td>
+            <a class="btn btn-sm btn-outline-secondary" href="/admin/community-units/{{ unit.community_unit_id }}/edit">Edit</a>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteUnit({{ unit.community_unit_id }})">Delete</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted">No community health units registered yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const form = document.getElementById('community-unit-form');
+  const response = document.getElementById('unit-response');
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const res = await fetch('/api/v1/admin/community-units', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        name: document.getElementById('unit-name').value,
+        location: document.getElementById('unit-location').value
+      })
+    });
+    const result = await res.json();
+    response.classList.remove('d-none', 'alert-danger', 'alert-success');
+    response.classList.add(res.ok ? 'alert-success' : 'alert-danger');
+    response.textContent = res.ok ? 'Community health unit created successfully.' : (result.error || 'Unable to create community health unit.');
+    if (res.ok) window.location.reload();
+  });
+
+  async function deleteUnit(id) {
+    if (!window.confirm('Delete this community health unit? It must have no CHPs or referrals.')) return;
+    const res = await fetch(`/api/v1/admin/community-units/${id}`, {
+      method: 'DELETE',
+      headers: {'X-CSRFToken': '{{ csrf_token() }}'}
+    });
+    if (!res.ok) {
+      const result = await res.json();
+      window.alert(result.error || 'Unable to delete community health unit.');
+      return;
+    }
+    window.location.reload();
+  }
+</script>
+{% endblock %}

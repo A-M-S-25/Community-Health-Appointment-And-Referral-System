@@ -1,0 +1,44 @@
+{% extends 'layout.html' %}
+{% block title %}Edit User{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div><h2 class="mb-0">Edit User</h2><p class="text-muted mb-0">{{ worker.username }}</p></div>
+  <a href="/admin/workers" class="btn btn-outline-primary">Back to Users</a>
+</div>
+<div class="card p-4">
+  <form id="user-edit-form">
+    <div class="row g-3">
+      <div class="col-md-6"><label class="form-label">Username</label><input id="username" class="form-control" value="{{ worker.username }}" required></div>
+      <div class="col-md-6"><label class="form-label">Role</label><select id="role" class="form-select">{% for role in ['L1','L2','L3','L4','L5','L6','Admin'] %}<option value="{{ role }}" {% if worker.role == role %}selected{% endif %}>{{ role }}</option>{% endfor %}</select></div>
+      <div class="col-md-6" id="facility-field"><label class="form-label">Facility</label><select id="facility-id" class="form-select"><option value="">Select facility</option>{% for facility in facilities %}<option value="{{ facility.facility_id }}" {% if worker.facility_id == facility.facility_id %}selected{% endif %}>{{ facility.name }} (Tier {{ facility.tier_level }})</option>{% endfor %}</select></div>
+      <div class="col-md-6" id="unit-field"><label class="form-label">Community Health Unit</label><select id="unit-id" class="form-select"><option value="">Select CHU</option>{% for unit in units %}<option value="{{ unit.community_unit_id }}" {% if worker.community_unit_id == unit.community_unit_id %}selected{% endif %}>{{ unit.name }} ({{ unit.location }})</option>{% endfor %}</select></div>
+      <div class="col-md-3 form-check ms-2"><input id="is-active" class="form-check-input" type="checkbox" {% if worker.is_active %}checked{% endif %}><label class="form-check-label" for="is-active">Active user</label></div>
+    </div>
+    <div class="mt-4"><button class="btn btn-primary" type="submit">Save Changes</button> <a href="/admin/workers" class="btn btn-outline-secondary">Cancel</a></div>
+  </form>
+  <div class="border-top mt-4 pt-4"><h5>Reset Password</h5><form id="password-form" class="row g-2"><div class="col-md-8"><input id="password" type="password" minlength="6" class="form-control" placeholder="New password" required></div><div class="col-md-4"><button class="btn btn-outline-warning w-100">Reset Password</button></div></form></div>
+  <div id="response" class="alert d-none mt-3"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const role = document.getElementById('role'), facilityField = document.getElementById('facility-field'), unitField = document.getElementById('unit-field');
+function syncAssignmentFields() { facilityField.classList.toggle('d-none', role.value === 'L1' || role.value === 'Admin'); unitField.classList.toggle('d-none', role.value !== 'L1'); }
+role.addEventListener('change', syncAssignmentFields); syncAssignmentFields();
+document.getElementById('user-edit-form').addEventListener('submit', async (event) => {
+  event.preventDefault(); const payload = {username: document.getElementById('username').value, role: role.value, is_active: document.getElementById('is-active').checked};
+  if (role.value === 'L1') payload.community_unit_id = Number(document.getElementById('unit-id').value);
+  if (['L2','L3','L4','L5','L6'].includes(role.value)) payload.facility_id = Number(document.getElementById('facility-id').value);
+  await saveUser(payload);
+});
+document.getElementById('password-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const res = await fetch('/api/v1/admin/workers/{{ worker.worker_id }}/password', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'}, body: JSON.stringify({password: document.getElementById('password').value})});
+  const result = await res.json(); const response = document.getElementById('response'); response.className = `alert ${res.ok ? 'alert-success' : 'alert-danger'} mt-3`; response.textContent = res.ok ? 'Password reset successfully.' : (result.error || 'Unable to reset password.'); if (res.ok) document.getElementById('password').value = '';
+});
+async function saveUser(payload) {
+  const res = await fetch('/api/v1/admin/workers/{{ worker.worker_id }}', {method: 'PATCH', headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'}, body: JSON.stringify(payload)});
+  const result = await res.json(); const response = document.getElementById('response'); response.className = `alert ${res.ok ? 'alert-success' : 'alert-danger'} mt-3`; response.textContent = res.ok ? 'User updated successfully.' : (result.error || 'Unable to update user.'); if (res.ok) window.location.href = '/admin/workers';
+}
+</script>
+{% endblock %}

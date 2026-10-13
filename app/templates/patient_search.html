@@ -1,0 +1,67 @@
+{% extends 'layout.html' %}
+
+{% block title %}Patient Lookup{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="card p-4">
+      <h2>Patient Lookup</h2>
+      <p class="text-muted">Search the patient registry by the registered phone number.</p>
+      <form id="patient-search-form" class="input-group">
+        <input id="patient-phone" class="form-control" type="tel" placeholder="+254700000001" required>
+        <button class="btn btn-primary" type="submit">Search</button>
+      </form>
+      <div id="patient-search-response" class="alert mt-3 d-none"></div>
+    </div>
+  </div>
+</div>
+
+<div class="card p-4 mt-4">
+  <h3>Visible Patients</h3>
+  <p class="text-muted">CHPs see patients in their CHU and UNKNOWN patients. Clinicians see all patients.</p>
+  <div class="table-responsive">
+    <table class="table table-striped">
+      <thead><tr><th>Patient</th><th>Phone</th><th>CHU</th><th></th></tr></thead>
+      <tbody id="patient-list"><tr><td colspan="4" class="text-muted">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById('patient-search-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const phone = encodeURIComponent(document.getElementById('patient-phone').value);
+    const response = await fetch(`/api/v1/patients/search?phone_number=${phone}`, {credentials: 'same-origin'});
+    const result = await response.json();
+    const alert = document.getElementById('patient-search-response');
+    if (!response.ok) {
+      alert.className = 'alert mt-3 alert-danger';
+      alert.textContent = result.error || 'Patient lookup failed.';
+      return;
+    }
+    window.location.href = `/patients/${result.patient_id}`;
+  });
+
+  async function loadPatients() {
+    const response = await fetch('/api/v1/patients', {credentials: 'same-origin'});
+    const result = await response.json();
+    const list = document.getElementById('patient-list');
+    if (!response.ok) {
+      list.innerHTML = `<tr><td colspan="4" class="text-danger">${result.error || 'Unable to load patients.'}</td></tr>`;
+      return;
+    }
+    list.innerHTML = result.map(patient => `
+      <tr>
+        <td>${patient.name}</td>
+        <td>${patient.phone_number}</td>
+        <td>${patient.community_unit}</td>
+        <td><a href="/patients/${patient.patient_id}">View</a></td>
+      </tr>
+    `).join('') || '<tr><td colspan="4" class="text-muted">No patients found.</td></tr>';
+  }
+  loadPatients();
+</script>
+{% endblock %}

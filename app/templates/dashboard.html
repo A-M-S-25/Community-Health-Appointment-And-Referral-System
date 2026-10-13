@@ -1,0 +1,208 @@
+{% extends 'layout.html' %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2 class="mb-0">Admin Dashboard</h2>
+    <p class="text-muted mb-0">Referral operations overview</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="/admin/facilities" class="btn btn-primary">Manage Facilities</a>
+    <a href="/admin/community-units" class="btn btn-outline-primary">Manage CHUs</a>
+    <a href="/admin/workers" class="btn btn-outline-primary">Manage Users</a>
+    <a href="/admin/reports.csv" class="btn btn-outline-success">Export CSV</a>
+    <a href="/admin/reports.pdf" class="btn btn-outline-danger">Export PDF</a>
+  </div>
+</div>
+
+<form class="card p-3 mb-4" method="get" action="/admin">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label">Status</label>
+      <select name="status" class="form-select">
+        <option value="">All statuses</option>
+        {% for item in ['Draft', 'Pending', 'Booked', 'Completed', 'Cancelled'] %}
+          <option value="{{ item }}" {{ 'selected' if request.args.get('status') == item else '' }}>{{ item }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">From</label>
+      <input type="date" name="start_date" class="form-control" value="{{ request.args.get('start_date', '') }}">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">To</label>
+      <input type="date" name="end_date" class="form-control" value="{{ request.args.get('end_date', '') }}">
+    </div>
+    <div class="col-md-3">
+      <button class="btn btn-outline-primary w-100">Apply Report Filters</button>
+    </div>
+  </div>
+</form>
+
+<div class="row g-4 mb-4">
+  <div class="col-md-3">
+    <div class="card p-3 h-100">
+      <div class="text-muted small">Completion Rate</div>
+      <h3 class="mt-2 mb-0">{{ dashboard.outcome_metrics.completion_rate }}%</h3>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card p-3 h-100">
+      <div class="text-muted small">Cancellation Rate</div>
+      <h3 class="mt-2 mb-0">{{ dashboard.outcome_metrics.cancellation_rate }}%</h3>
+    </div>
+  </div>
+  <div class="col-md-6 d-flex align-items-center justify-content-end gap-2">
+    <a href="/admin/reports.csv?status=Completed" class="btn btn-sm btn-outline-success">Completed CSV</a>
+    <a href="/admin/reports.csv?status=Cancelled" class="btn btn-sm btn-outline-danger">Cancelled CSV</a>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-md-2">
+    <div class="card p-3 h-100">
+      <div class="text-muted small">Facilities</div>
+      <h3 class="mt-2 mb-0">{{ dashboard.summary.facilities }}</h3>
+    </div>
+  </div>
+  <div class="col-md-2">
+    <div class="card p-3 h-100">
+      <div class="text-muted small">Users</div>
+      <h3 class="mt-2 mb-0">{{ dashboard.summary.workers }}</h3>
+    </div>
+  </div>
+  <div class="col-md-2">
+    <div class="card p-3 h-100">
+      <div class="text-muted small">Patients</div>
+      <h3 class="mt-2 mb-0">{{ dashboard.summary.patients }}</h3>
+    </div>
+  </div>
+  <div class="col-md-2">
+    <div class="card p-3 h-100">
+      <div class="text-muted small">Referrals</div>
+      <h3 class="mt-2 mb-0">{{ dashboard.summary.referrals }}</h3>
+    </div>
+  </div>
+  <div class="col-md-2">
+    <div class="card p-3 h-100">
+      <div class="text-muted small">Appointments</div>
+      <h3 class="mt-2 mb-0">{{ dashboard.summary.appointments }}</h3>
+    </div>
+  </div>
+  <div class="col-md-2">
+    <div class="card p-3 h-100">
+      <div class="text-muted small">Open</div>
+      <h3 class="mt-2 mb-0">{{ dashboard.summary.open_referrals }}</h3>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-lg-6">
+    <div class="card p-4">
+      <h4>Referral Status Distribution</h4>
+      <canvas id="statusChart" height="150"></canvas>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card p-4">
+      <h4>Facility Tier Distribution</h4>
+      <canvas id="tierChart" height="150"></canvas>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card p-4">
+      <h4>Worker Role Distribution</h4>
+      <canvas id="roleChart" height="150"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="card p-4">
+  <h4>Recent Referrals</h4>
+  <div class="table-responsive mt-3">
+    <table class="table table-striped align-middle">
+      <thead>
+        <tr>
+          <th>Referral ID</th>
+          <th>Patient</th>
+          <th>Status</th>
+          <th>Destination</th>
+          <th>Triage</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in dashboard.recent_referrals %}
+        <tr>
+          <td>#{{ item.referral_id }}</td>
+          <td>{{ item.patient }}</td>
+          <td><span class="badge bg-primary">{{ item.status }}</span></td>
+          <td>{{ item.destination }}</td>
+          <td>{{ item.triage_notes }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="text-muted text-center">No referrals available.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const statusData = {{ dashboard.status_breakdown | tojson }};
+  const tierData = {{ dashboard.tier_breakdown | tojson }};
+  const roleData = {{ dashboard.role_breakdown | tojson }};
+
+  new Chart(document.getElementById('statusChart'), {
+    type: 'doughnut',
+    data: {
+      labels: statusData.map(item => item.label),
+      datasets: [{
+        data: statusData.map(item => item.value),
+        backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6c757d']
+      }]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+  });
+
+  new Chart(document.getElementById('tierChart'), {
+    type: 'bar',
+    data: {
+      labels: tierData.map(item => item.label),
+      datasets: [{
+        label: 'Facilities',
+        data: tierData.map(item => item.value),
+        backgroundColor: '#20c997'
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true, precision: 0 } }
+    }
+  });
+
+  new Chart(document.getElementById('roleChart'), {
+    type: 'bar',
+    data: {
+      labels: roleData.map(item => item.label),
+      datasets: [{
+        label: 'Users',
+        data: roleData.map(item => item.value),
+        backgroundColor: '#6f42c1'
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true, precision: 0 } }
+    }
+  });
+</script>
+{% endblock %}

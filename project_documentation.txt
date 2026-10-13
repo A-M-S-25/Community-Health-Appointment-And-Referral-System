@@ -1,0 +1,382 @@
+COMMUNITY HEALTH SYSTEM - PROJECT DOCUMENTATION
+===============================================
+
+Generated: 2026-10-13
+Project root: C:\xampp\htdocs\charsystem
+
+PURPOSE
+-------
+This project is a Flask-based community health management system. It separates
+health facilities (levels 2-6) from Community Health Units (level 1), and
+supports administrators, clinicians, Community Health Promoters (CHPs),
+patients, triage, referrals, facility capacity, appointment slots, bookings,
+audit logging, and SMS notifications.
+
+DOCUMENTATION SCOPE
+-------------------
+The structure and file index below cover all project-managed source, template,
+configuration, migration, test, database, and data-export files in the project
+root. The .venv, .venv-1, __pycache__, and .pytest_cache directories are
+generated local environment/cache content and are not expanded because they
+contain installed third-party files and transient bytecode rather than
+application source.
+
+DIRECTORY STRUCTURE
+-------------------
+C:\xampp\htdocs\charsystem\
+|-- .env
+|-- .gitignore
+|-- charsystem.db
+|-- charsystem.sql
+|-- config.py
+|-- project_documentation.txt
+|-- requirements.txt
+|-- run.py
+|-- app\
+|   |-- __init__.py
+|   |-- models.py
+|   |-- routes\
+|   |   |-- __init__.py
+|   |   |-- admin.py
+|   |   |-- appointments.py
+|   |   |-- details.py
+|   |   |-- facilities.py
+|   |   |-- patients.py
+|   |   |-- profile.py
+|   |-- services\
+|   |   |-- audit_service.py
+|   |   |-- auth_service.py
+|   |   |-- referral_service.py
+|   |   |-- security_service.py
+|   |   |-- sms_service.py
+|   |   |-- validation_service.py
+|   |-- static\
+|   |   |-- css\
+|   |   |-- js\
+|   |       |-- app.js
+|   |-- templates\
+|       |-- admin_community_unit_edit.html
+|       |-- admin_community_units.html
+|       |-- admin_facility_edit.html
+|       |-- admin_facilities.html
+|       |-- admin_user_edit.html
+|       |-- admin_workers.html
+|       |-- appointment_detail.html
+|       |-- appointments.html
+|       |-- dashboard.html
+|       |-- layout.html
+|       |-- login.html
+|       |-- patient_detail.html
+|       |-- patient_search.html
+|       |-- patient_triage.html
+|       |-- profile.html
+|       |-- referral_detail.html
+|       |-- referrals.html
+|       |-- registration.html
+|   |-- utils\
+|       |-- decorators.py
+|-- migrations\
+|   |-- run_migration.py
+|   |-- schema.sql
+|-- tests\
+    |-- test_referral_lifecycle.py
+    |-- test_security_service.py
+    |-- test_validation.py
+
+APPLICATION ENTRY POINTS AND ROOT FILES
+---------------------------------------
+
+.env
+    Local environment configuration loaded by config.py and the migration
+    script. It can contain database credentials, Flask secrets, application
+    environment settings, and SMS provider settings. This file is excluded
+    from version control by .gitignore and must never be published with real
+    secrets.
+
+.gitignore
+    Lists files and directories that should not be committed, including .env,
+    SQLite database files, Python bytecode, and the local virtual environment.
+
+charsystem.db
+    Local SQLite database file used when MySQL settings are not supplied.
+    It is a runtime data artifact, not the authoritative schema source.
+
+charsystem.sql
+    The populated MariaDB/phpMyAdmin database export supplied with the project.
+    It contains table definitions, indexes, constraints, and current data for
+    appointments, appointment slots, audit logs, Community Health Units,
+    facilities, healthcare workers, patients, admissions, referrals,
+    referral appointments, and SMS messages. The export was generated from
+    MariaDB 10.4.32 on 2026-10-13.
+
+config.py
+    Loads .env settings and builds the SQLAlchemy database URI. It supports a
+    DATABASE_URL, individual MySQL connection variables, or a SQLite fallback.
+    It defines shared Flask settings, SMS settings, development settings, and
+    production settings.
+
+project_documentation.txt
+    This file. It documents the application structure and explains the role of
+    every project-managed file.
+
+requirements.txt
+    Python dependency manifest. It lists Flask, Flask-SQLAlchemy, PyMySQL,
+    python-dotenv, requests, Werkzeug, reportlab, and pytest with their
+    required versions.
+
+run.py
+    Application launcher. It imports create_app, creates the Flask application,
+    and starts the development server on 0.0.0.0:5000 when executed directly.
+
+APPLICATION PACKAGE
+-------------------
+
+app/__init__.py
+    Creates and configures the Flask application. It initializes SQLAlchemy,
+    security context, CSRF checks, blueprints, development schema upgrades,
+    legacy assignment migration, and demo seed data. It also defines the
+    top-level routes for the landing page, login, logout, dashboard, referrals,
+    appointments, patient lookup, registration, and admin redirection.
+
+app/models.py
+    Defines all SQLAlchemy models and relationships:
+    Facility, CommunityHealthUnit, HealthcareWorker, Patient, Referral,
+    Appointment, PatientAdmission, AppointmentSlot, ReferralAppointment,
+    AuditLog, and SmsMessage. It also contains database constraints for role
+    assignments, facility tiers, appointment ownership, and unique records.
+
+ROUTES
+------
+
+app/routes/__init__.py
+    Package marker for the Flask route modules. It allows the route directory
+    to be imported as a Python package.
+
+app/routes/admin.py
+    Administrator web pages and APIs. It manages the admin dashboard,
+    facilities, Community Health Units, system users, CRUD edit pages,
+    activation/deactivation, password resets, contact normalization,
+    capacity changes, dependency-aware deletion, and protection against
+    removing or deactivating the final active administrator.
+
+app/routes/appointments.py
+    Appointment and appointment-slot APIs. It creates slots, lists available
+    slots, accepts or rejects routed referrals, books accepted referrals,
+    lists facility-scoped booked/completed/cancelled appointments, and allows
+    authorized clinicians to mark appointments completed or cancel them for
+    no-shows. Cancellation releases the slot for reuse.
+
+app/routes/details.py
+    Server-rendered detail pages for patients, referrals, and appointments.
+    It applies role-aware access checks and presents workflow links without
+    mixing patient details, triage editing, referrals, and booking controls.
+
+app/routes/facilities.py
+    Facility availability and admission APIs. It calculates dynamic bed
+    capacity from active patient admissions, restricts CHP availability checks
+    to level 2 and level 3 facilities, admits patients when capacity exists,
+    and discharges patients to restore capacity.
+
+app/routes/patients.py
+    Patient, triage, referral, and patient-visibility APIs. It onboards
+    patients, assigns CHP-onboarded patients to the CHP's CHU, keeps clinician
+    onboarded patients in UNKNOWN CHU scope, searches and lists visible
+    patients, updates triage data, creates referrals, and filters referrals
+    according to the user's role and organization.
+
+app/routes/profile.py
+    Self-service profile page and update API. Users can change permitted
+    profile fields such as username and password, but cannot change their role,
+    facility, or Community Health Unit assignment.
+
+SERVICES
+--------
+
+app/services/audit_service.py
+    Records security and operational actions in AuditLog records, including
+    the acting worker, resource, action, metadata, and request IP address.
+
+app/services/auth_service.py
+    Provides authentication helpers for loading the current worker, logging
+    users in, logging them out, and maintaining session identity.
+
+app/services/referral_service.py
+    Defines and enforces valid referral status transitions. It handles the
+    lifecycle from draft and pending through accepted, booked, completed,
+    cancelled, or rejected.
+
+app/services/security_service.py
+    Provides CSRF token generation and validation plus login throttling and
+    related security controls.
+
+app/services/sms_service.py
+    Sends SMS notifications through the configured provider when available,
+    records SMS delivery attempts, and supports the application's demo or
+    fallback SMS behavior.
+
+app/services/validation_service.py
+    Centralizes validation and normalization for names, phones, facilities,
+    Community Health Units, users, patients, triage data, referrals,
+    appointment payloads, dates, roles, facility tiers, and referral routing
+    rules.
+
+STATIC ASSETS
+-------------
+
+app/static/css/
+    CSS asset directory for application styling. It is currently present as
+    the static stylesheet location; shared visual styling is also provided by
+    the front-end framework referenced by the templates.
+
+app/static/js/
+    JavaScript asset directory.
+
+app/static/js/app.js
+    Shared browser-side JavaScript for registration, legacy/common form
+    handling, facility availability display, appointment interactions, API
+    calls, and user-facing request feedback used by applicable pages.
+
+TEMPLATES
+---------
+
+app/templates/layout.html
+    Shared page shell. It defines the document layout, navigation bar, Health
+    System branding, authenticated user's role and affiliation display,
+    navigation grouping, CSRF metadata, and shared template blocks.
+
+app/templates/login.html
+    Login form for system users. It collects credentials and displays
+    authentication or session validation errors.
+
+app/templates/registration.html
+    Patient registration/onboarding form. It collects structured patient
+    information instead of requiring users to enter JSON.
+
+app/templates/dashboard.html
+    General authenticated dashboard view with role-sensitive summary content
+    and links to the main workflows.
+
+app/templates/profile.html
+    User profile editing page for permitted personal account changes.
+
+app/templates/admin_workers.html
+    Administrator's system-user listing page. It shows roles, active state,
+    facility or CHU assignment, and links to edit or delete users.
+
+app/templates/admin_user_edit.html
+    Dedicated administrator form for editing a user's username, role,
+    facility/CHU assignment, active status, and password reset options.
+
+app/templates/admin_facilities.html
+    Administrator's facility list. It displays tier, capacity, current
+    availability, contact information, status, and facility actions.
+
+app/templates/admin_facility_edit.html
+    Dedicated facility edit page for name, tier, contact details, capacity,
+    and active state. It uses separate fields for contact information rather
+    than requiring JSON input.
+
+app/templates/admin_community_units.html
+    Administrator's Community Health Unit listing and onboarding page.
+
+app/templates/admin_community_unit_edit.html
+    Dedicated CHU edit page for CHU name, geographical location, and active
+    state.
+
+app/templates/appointments.html
+    Clinician appointment-management page. It displays incoming referrals,
+    available appointment slots, booked appointments, appointment history,
+    and actions to complete treatment or cancel a no-show appointment.
+
+app/templates/appointment_detail.html
+    Detail page for a single appointment, including its patient, facility,
+    date/time, referral relationship, and status information.
+
+app/templates/referrals.html
+    Dedicated referral workflow page. It lists patients visible to the current
+    user, provides facility destination selection and availability checks,
+    creates referrals, and displays the referral queue.
+
+app/templates/referral_detail.html
+    Detail page for a referral, including patient, source, destination,
+    notes, status, and referral history.
+
+app/templates/patient_search.html
+    Patient lookup page. It searches and displays patients visible to the
+    current role and shows CHU ownership where applicable.
+
+app/templates/patient_detail.html
+    Patient profile and history page. It focuses on demographics, history,
+    and links to the dedicated triage, referral, and appointment workflows.
+
+app/templates/patient_triage.html
+    Dedicated triage page for viewing or updating a patient's triage data
+    under the role-specific access rules.
+
+MIGRATIONS AND DATABASE SCHEMA
+------------------------------
+
+migrations/schema.sql
+    Baseline MySQL/MariaDB schema. It creates facilities, Community Health
+    Units, healthcare workers, patients, referrals, appointments, admissions,
+    appointment slots, referral bookings, audit logs, and SMS message tables,
+    including foreign keys, indexes, uniqueness rules, and status checks.
+
+migrations/run_migration.py
+    Standalone MySQL migration runner. It reads schema.sql, connects using
+    MYSQL_* values from .env, executes schema statements, and applies
+    compatibility ALTER TABLE statements for existing installations.
+
+TESTS
+-----
+
+tests/test_referral_lifecycle.py
+    Tests referral state transitions, including legacy pending-to-booked
+    compatibility and prevention of reopening completed referrals.
+
+tests/test_security_service.py
+    Tests login throttling after repeated failed authentication attempts.
+
+tests/test_validation.py
+    Tests validation and business rules for patient data, phone numbers,
+    facility tiers, referral destinations, referral payloads, role assignments,
+    and Community Health Unit data.
+
+DATABASE EXPORT CONTENTS
+------------------------
+
+The supplied charsystem.sql export contains these populated or defined tables:
+
+    appointments
+    appointment_slots
+    audit_logs
+    community_health_units
+    facilities
+    healthcare_workers
+    patients
+    patient_admissions
+    referrals
+    referral_appointments
+    sms_messages
+
+The export includes current appointment and slot records, user and
+organizational assignments, patient and referral records, audit history, and
+SMS history. Passwords in the healthcare_workers table are stored as password
+hashes rather than plaintext passwords.
+
+RUNTIME NOTES
+-------------
+
+1. Configure .env with either DATABASE_URL or MYSQL_USER and related MySQL
+   variables. Without MySQL settings, the application falls back to
+   charsystem.db.
+2. Install dependencies from requirements.txt into a virtual environment.
+3. Run migrations/run_migration.py when initializing or updating a MySQL/
+   MariaDB schema.
+4. Start the development application with:
+
+       .venv\Scripts\python.exe run.py
+
+5. The development server listens on port 5000 and is configured by run.py.
+6. Do not expose .env, database dumps, password hashes, or production secrets
+   publicly.

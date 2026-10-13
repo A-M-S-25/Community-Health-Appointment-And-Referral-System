@@ -1,0 +1,70 @@
+{% extends 'layout.html' %}
+
+{% block title %}Patient Details{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2>Patient Details</h2>
+    <p class="text-muted mb-0">Patient #{{ patient.patient_id }}</p>
+  </div>
+  <a href="/patients/search" class="btn btn-outline-primary">Back to Patient Lookup</a>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card p-4">
+      <h4>Patient Profile</h4>
+      <dl class="row mt-3 mb-0">
+        <dt class="col-sm-5">Name</dt>
+        <dd class="col-sm-7">{{ patient.demographics.get('name', 'Not provided') }}</dd>
+        <dt class="col-sm-5">Phone</dt>
+        <dd class="col-sm-7">{{ patient.phone_number }}</dd>
+        <dt class="col-sm-5">Age</dt>
+        <dd class="col-sm-7">{{ patient.demographics.get('age', 'Not provided') }}</dd>
+        <dt class="col-sm-5">Community health unit</dt>
+        <dd class="col-sm-7">{{ patient.community_unit.name if patient.community_unit else 'UNKNOWN' }}</dd>
+      </dl>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card p-4 mb-4">
+      <h4>Patient actions</h4>
+      <div class="d-flex gap-2 flex-wrap">
+        {% if can_manage_patient %}
+        <a class="btn btn-outline-primary" href="/patients/{{ patient.patient_id }}/triage">Open triage</a>
+        {% endif %}
+        <a class="btn btn-outline-primary" href="/referrals">Patient referrals</a>
+        {% if session.get('worker_role') in ('L2', 'L3', 'L4', 'L5', 'L6', 'Admin') %}
+        <a class="btn btn-outline-primary" href="/appointments">Appointments</a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card p-4">
+      <h4>Referral History</h4>
+      <div class="table-responsive mt-3">
+        <table class="table table-striped">
+          <thead><tr><th>ID</th><th>Status</th><th>Destination</th><th></th></tr></thead>
+          <tbody>
+            {% for referral in patient.referrals %}
+            <tr>
+              <td>#{{ referral.referral_id }}</td>
+              <td><span class="badge bg-primary">{{ referral.status }}</span></td>
+              <td>{{ referral.destination_facility.name }}</td>
+              <td><a href="/referrals/{{ referral.referral_id }}">View</a></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="text-muted text-center">No referrals found.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+</script>
+{% endblock %}

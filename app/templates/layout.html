@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Community Health Appointment & Referral System{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <style>
+      body { background: #f8f9fa; }
+      .topbar { background: #0d6efd; color: white; }
+      .card { border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+      .nav-link { color: white !important; }
+      .identity { line-height: 1.15; }
+      .identity small { color: rgba(255,255,255,.75); }
+      .topbar .dropdown-menu { min-width: 13rem; }
+      .topbar .nav-link,
+      .topbar .dropdown,
+      .topbar .identity,
+      .topbar .btn-light {
+        margin-left: .25rem;
+        padding-left: .75rem;
+        border-left: 1px solid rgba(255,255,255,.35);
+      }
+      .topbar .navbar-brand {
+        padding-right: 1rem;
+        border-right: 1px solid rgba(255,255,255,.35);
+      }
+      @media (max-width: 991.98px) {
+        .topbar .nav-link,
+        .topbar .dropdown,
+        .topbar .identity,
+        .topbar .btn-light {
+          margin-left: 0;
+          padding-left: 0;
+          border-left: 0;
+        }
+      }
+      .muted { color: #6c757d; }
+    </style>
+  </head>
+  <body>
+    <nav class="navbar navbar-dark navbar-expand-lg topbar mb-4">
+      <div class="container">
+        <a class="navbar-brand text-white" href="/">Health System</a>
+        <button class="navbar-toggler border-light" type="button" data-bs-toggle="collapse" data-bs-target="#main-navigation" aria-controls="main-navigation" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="main-navigation">
+          <div class="ms-auto d-flex align-items-center gap-2 flex-wrap">
+          {% if session.get('worker_id') %}
+            {% if session.get('worker_role') in ('L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'Admin') %}
+              <a class="nav-link" href="/register">Register Patient</a>
+            {% endif %}
+            <a class="nav-link" href="/referrals">Referrals</a>
+            {% if session.get('worker_role') in ('L2', 'L3', 'L4', 'L5', 'L6', 'Admin') %}
+              <a class="nav-link" href="/appointments">Appointments</a>
+            {% endif %}
+            {% if session.get('worker_role') in ('L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'Admin') %}
+              <a class="nav-link" href="/patients/search">Patient Lookup</a>
+            {% endif %}
+            {% if session.get('worker_role') == 'Admin' %}
+              <div class="dropdown">
+                <button class="btn btn-link nav-link dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Administration</button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  <li><a class="dropdown-item" href="/admin">Dashboard</a></li>
+                  <li><a class="dropdown-item" href="/admin/facilities">Facilities</a></li>
+                  <li><a class="dropdown-item" href="/admin/community-units">Community Health Units</a></li>
+                  <li><a class="dropdown-item" href="/admin/workers">Users</a></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item" href="/admin/reports.csv">Export CSV report</a></li>
+                  <li><a class="dropdown-item" href="/admin/reports.pdf">Export PDF report</a></li>
+                </ul>
+              </div>
+            {% endif %}
+            <div class="identity text-end ms-2">
+              <div class="text-white">{{ session.get('worker_username') }}</div>
+              <small>{{ worker_affiliation }}</small>
+            </div>
+            <a class="nav-link" href="/profile">Profile</a>
+            <a class="btn btn-light btn-sm" href="/logout">Logout</a>
+          {% else %}
+            <a class="nav-link" href="/login">Login</a>
+          {% endif %}
+          </div>
+        </div>
+      </div>
+    </nav>
+    <div class="container py-4">
+      {% block content %}{% endblock %}
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

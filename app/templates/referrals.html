@@ -1,0 +1,167 @@
+{% extends 'layout.html' %}
+
+{% block title %}Patient Referrals{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2 class="mb-0">Patient Referrals</h2>
+    <p class="text-muted mb-0">Select an accessible patient, route the referral, and monitor the referral queue.</p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card p-4">
+      <h3>Refer a patient</h3>
+      <label class="form-label mt-3" for="referral-patient">Patient</label>
+      <select id="referral-patient" class="form-select">
+        <option value="">Loading patients...</option>
+      </select>
+      <label class="form-label mt-3" for="referral-destination">Destination facility</label>
+      <select id="referral-destination" class="form-select">
+        <option value="">Loading facilities...</option>
+      </select>
+      <label class="form-label mt-3" for="referral-triage">Referral notes</label>
+      <textarea id="referral-triage" class="form-control" rows="4" placeholder="Summarize the reason for referral"></textarea>
+      <button id="create-referral" class="btn btn-primary mt-3">Create referral</button>
+      <div id="referral-response" class="alert mt-3 d-none"></div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card p-4">
+      <div class="d-flex justify-content-between align-items-center">
+        <h3 class="mb-0">Facility availability</h3>
+        <button id="availability-close" type="button" class="btn btn-sm btn-outline-secondary d-none">Close</button>
+      </div>
+      <div class="row g-3 align-items-end mt-1">
+        <div class="col-md-5">
+          <label class="form-label" for="tier-level">Minimum tier</label>
+          <input id="tier-level" type="number" class="form-control" min="2" max="{{ 3 if session.get('worker_role') == 'L1' else 6 }}" value="2">
+        </div>
+        <div class="col-md-5">
+          <label class="form-label" for="location">Location</label>
+          <input id="location" type="text" class="form-control" placeholder="e.g. Nairobi">
+        </div>
+        <div class="col-md-2">
+          <button id="check-availability" class="btn btn-success w-100">Check</button>
+        </div>
+      </div>
+      <div id="availability-panel" class="mt-3 d-none">
+        <div id="availability-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card p-4 mt-4">
+  <div class="d-flex justify-content-between align-items-center">
+    <h3 class="mb-0">Referral queue</h3>
+    <select id="queue-status" class="form-select w-auto">
+      <option value="">All statuses</option>
+      <option>Pending</option>
+      <option>Booked</option>
+      <option>Completed</option>
+      <option>Cancelled</option>
+    </select>
+  </div>
+  <div class="table-responsive mt-3">
+    <table class="table table-striped">
+      <thead><tr><th>ID</th><th>Patient</th><th>Status</th><th>Destination</th><th></th></tr></thead>
+      <tbody id="referral-queue"></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+  const role = '{{ session.get("worker_role", "") }}';
+  const maxTier = role === 'L1' ? 3 : 6;
+  const allowedTiers = {
+    L1: [2, 3], L2: [3, 4, 5, 6], L3: [2, 4, 5, 6],
+    L4: [2, 3, 5, 6], L5: [2, 3, 4, 6], L6: [2, 3, 4, 5], Admin: [2, 3, 4, 5, 6]
+  }[role] || [];
+
+  async function loadPatients() {
+    const response = await fetch('/api/v1/patients', {credentials: 'same-origin'});
+    const patients = await response.json();
+    const select = document.getElementById('referral-patient');
+    if (!response.ok) {
+      select.innerHTML = '<option value="">Unable to load patients</option>';
+      return;
+    }
+    select.innerHTML = patients.map(patient =>
+      `<option value="${patient.patient_id}">${patient.name} - ${patient.phone_number} (${patient.community_unit})</option>`
+    ).join('') || '<option value="">No accessible patients</option>';
+  }
+
+  async function loadDestinations() {
+    const response = await fetch(`/api/v1/facilities/availability?tier_level=2&available_only=true`, {credentials: 'same-origin'});
+    const facilities = await response.json();
+    const select = document.getElementById('referral-destination');
+    if (!response.ok) {
+      select.innerHTML = '<option value="">Unable to load facilities</option>';
+      return;
+    }
+    select.innerHTML = facilities.filter(facility => allowedTiers.includes(facility.tier_level)).map(facility =>
+      `<option value="${facility.facility_id}">Tier ${facility.tier_level} - ${facility.name}</option>`
+    ).join('') || '<option value="">No permitted facilities</option>';
+  }
+
+  async function loadReferralQueue() {
+    const status = document.getElementById('queue-status').value;
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+    const response = await fetch(`/api/v1/referrals${query}`, {credentials: 'same-origin'});
+    const referrals = await response.json();
+    const queue = document.getElementById('referral-queue');
+    queue.innerHTML = response.ok ? referrals.map(item => `
+      <tr><td>#${item.referral_id}</td><td><a href="/patients/${item.patient_id}">${item.patient_name}</a></td>
+      <td><span class="badge bg-primary">${item.status}</span></td><td>${item.destination_facility}</td>
+      <td><a href="/referrals/${item.referral_id}">View details</a></td></tr>
+    `).join('') : `<tr><td colspan="5" class="text-danger">${referrals.error || 'Unable to load queue.'}</td></tr>`;
+    if (!queue.innerHTML) queue.innerHTML = '<tr><td colspan="5" class="text-muted text-center">No referrals found.</td></tr>';
+  }
+
+  document.getElementById('check-availability').addEventListener('click', async () => {
+    const tier = document.getElementById('tier-level').value;
+    const location = document.getElementById('location').value;
+    const query = new URLSearchParams({tier_level: tier, location});
+    const response = await fetch(`/api/v1/facilities/availability?${query}`, {credentials: 'same-origin'});
+    const result = await response.json();
+    const panel = document.getElementById('availability-panel');
+    const container = document.getElementById('availability-result');
+    panel.classList.remove('d-none');
+    document.getElementById('availability-close').classList.remove('d-none');
+    container.innerHTML = response.ok && Array.isArray(result)
+      ? (result.map(f => `<div class="border rounded p-2 mb-2"><strong>${f.name}</strong><br>Tier ${f.tier_level} · ${f.available_capacity}/${f.capacity} beds available · ${f.available_slots} appointment slots</div>`).join('') || '<div class="alert alert-warning">No matching facilities found.</div>')
+      : `<div class="alert alert-danger">${result.error || 'Unable to fetch availability.'}</div>`;
+  });
+  document.getElementById('availability-close').addEventListener('click', () => {
+    document.getElementById('availability-panel').classList.add('d-none');
+    document.getElementById('availability-close').classList.add('d-none');
+  });
+  document.getElementById('queue-status').addEventListener('change', loadReferralQueue);
+  document.getElementById('create-referral').addEventListener('click', async () => {
+    const response = await fetch(`/api/v1/patients/${document.getElementById('referral-patient').value}/referrals`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        destination_facility_id: Number(document.getElementById('referral-destination').value),
+        triage_notes: document.getElementById('referral-triage').value.trim()
+      })
+    });
+    const result = await response.json();
+    const alert = document.getElementById('referral-response');
+    alert.className = `alert mt-3 ${response.ok ? 'alert-success' : 'alert-danger'}`;
+    alert.textContent = result.message || result.error;
+    if (response.ok) { document.getElementById('referral-triage').value = ''; loadReferralQueue(); }
+  });
+  loadPatients();
+  loadDestinations();
+  loadReferralQueue();
+</script>
+{% endblock %}

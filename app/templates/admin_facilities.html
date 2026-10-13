@@ -1,0 +1,154 @@
+{% extends 'layout.html' %}
+
+{% block title %}Facilities Administration{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2 class="mb-0">Facility Administration</h2>
+    <p class="text-muted mb-0">Manage facility onboarding and tier assignments</p>
+  </div>
+  <a href="/admin" class="btn btn-outline-primary">Back to Dashboard</a>
+</div>
+
+<div class="card p-4 mb-4">
+  <h4>Add New Facility</h4>
+  <form id="facility-form">
+    <div class="row g-3 mt-2">
+      <div class="col-md-5">
+        <label class="form-label">Facility Name</label>
+        <input type="text" id="facility-name" class="form-control" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Tier Level</label>
+        <input type="number" id="facility-tier" class="form-control" min="2" max="6" value="3" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Capacity</label>
+        <input type="number" id="facility-capacity" class="form-control" min="1" value="20" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Location</label>
+        <input type="text" id="facility-location" class="form-control" value="Nairobi" required>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-success mt-3">Create Facility</button>
+  </form>
+  <div id="facility-response" class="alert mt-3 d-none"></div>
+</div>
+
+<div class="card p-4">
+  <h4>Facility List</h4>
+  <div class="table-responsive mt-3">
+    <table class="table table-striped align-middle">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Tier</th>
+          <th>Capacity</th>
+          <th>Contact Info</th>
+          <th>Active</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for facility in facilities %}
+        {% set contact_info = contact_info_by_facility_id.get(facility.facility_id, {}) %}
+        <tr>
+          <td>{{ facility.facility_id }}</td>
+          <td>{{ facility.name }}</td>
+          <td>{{ facility.tier_level }}</td>
+          <td>{{ facility.available_capacity }} available / {{ facility.capacity }}</td>
+          <td>
+            {% if contact_info %}
+              {% if contact_info.get('phone') %}<div>{{ contact_info.get('phone') }}</div>{% endif %}
+              {% if contact_info.get('email') %}<div>{{ contact_info.get('email') }}</div>{% endif %}
+              {% if contact_info.get('location') %}<div>{{ contact_info.get('location') }}</div>{% endif %}
+            {% else %}
+              <span class="text-muted">Not provided</span>
+            {% endif %}
+          </td>
+          <td>
+            <button class="btn btn-sm {{ 'btn-outline-danger' if facility.is_active else 'btn-outline-success' }}"
+                    onclick="toggleFacility({{ facility.facility_id }}, {{ 'false' if facility.is_active else 'true' }})">
+              {{ 'Deactivate' if facility.is_active else 'Activate' }}
+            </button>
+          </td>
+          <td>
+            <a class="btn btn-sm btn-outline-secondary" href="/admin/facilities/{{ facility.facility_id }}/edit">Edit</a>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteFacility({{ facility.facility_id }})">Delete</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="text-center text-muted">No facilities registered yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const form = document.getElementById('facility-form');
+  const response = document.getElementById('facility-response');
+
+  form.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    const payload = {
+      name: document.getElementById('facility-name').value,
+      tier_level: Number(document.getElementById('facility-tier').value),
+      capacity: Number(document.getElementById('facility-capacity').value),
+      contact_info: {
+        location: document.getElementById('facility-location').value
+      }
+    };
+
+    const res = await fetch('/api/v1/admin/facilities', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': '{{ csrf_token() }}'
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify(payload)
+    });
+
+    const result = await res.json();
+    response.classList.remove('d-none', 'alert-danger', 'alert-success');
+    response.classList.add(res.ok ? 'alert-success' : 'alert-danger');
+    response.textContent = res.ok ? 'Facility created successfully.' : (result.error || 'Unable to create facility.');
+
+    if (res.ok) {
+      window.location.reload();
+    }
+  });
+
+  async function toggleFacility(id, active) {
+    await fetch(`/api/v1/admin/facilities/${id}`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+      body: JSON.stringify({is_active: active})
+    });
+    window.location.reload();
+  }
+
+  async function deleteFacility(id) {
+    if (!window.confirm('Delete this facility? It must have no users, referrals, appointments, slots, or admissions.')) return;
+    const res = await fetch(`/api/v1/admin/facilities/${id}`, {
+      method: 'DELETE',
+      headers: {'X-CSRFToken': '{{ csrf_token() }}'}
+    });
+    if (!res.ok) {
+      const result = await res.json();
+      window.alert(result.error || 'Unable to delete facility.');
+      return;
+    }
+    window.location.reload();
+  }
+
+</script>
+{% endblock %}

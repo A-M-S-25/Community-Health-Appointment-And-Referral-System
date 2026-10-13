@@ -1,0 +1,36 @@
+{% extends 'layout.html' %}
+
+{% block title %}Patient Triage{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2>Patient Triage</h2>
+    <p class="text-muted mb-0">{{ patient.demographics.get('name', 'Unknown') }} · Patient #{{ patient.patient_id }}</p>
+  </div>
+  <a href="/patients/{{ patient.patient_id }}" class="btn btn-outline-primary">Patient Details</a>
+</div>
+<div class="card p-4">
+  <label class="form-label" for="triage-notes">Triage notes</label>
+  <textarea id="triage-notes" class="form-control" rows="8" placeholder="Record symptoms, observations, vital signs, and clinical notes">{{ patient.triage_data.get('notes', '') if patient.triage_data else '' }}</textarea>
+  <button id="save-triage" class="btn btn-primary mt-3">Save triage data</button>
+  <div id="triage-response" class="alert mt-3 d-none"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('save-triage').addEventListener('click', async () => {
+  const response = await fetch('/api/v1/patients/{{ patient.patient_id }}/triage', {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''},
+    credentials: 'same-origin',
+    body: JSON.stringify({triage_data: {notes: document.getElementById('triage-notes').value.trim()}})
+  });
+  const result = await response.json();
+  const alert = document.getElementById('triage-response');
+  alert.className = `alert mt-3 ${response.ok ? 'alert-success' : 'alert-danger'}`;
+  alert.textContent = result.message || result.error;
+});
+</script>
+{% endblock %}

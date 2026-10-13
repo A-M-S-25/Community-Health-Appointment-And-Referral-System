@@ -1,0 +1,39 @@
+{% extends 'layout.html' %}
+
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-5">
+    <div class="card p-4">
+      <h2 class="mb-3 text-center">Sign In</h2>
+      <p class="text-muted text-center">Community Health Appointment & Referral System</p>
+
+      <form method="post" action="/login">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="mb-3">
+          <label class="form-label">Username</label>
+          <input type="text" name="username" class="form-control" placeholder="Enter username" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Password</label>
+          <input type="password" name="password" class="form-control" placeholder="Enter password" required>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
+        <button type="submit" class="btn btn-primary w-100">Login</button>
+      </form>
+
+      <div class="mt-4 small text-muted">
+        Demo credentials:<br>
+        Admin: admin01 / demo123<br>
+        CHP: chp01 / demo123<br>
+        Nurse: nurse02 / demo123
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

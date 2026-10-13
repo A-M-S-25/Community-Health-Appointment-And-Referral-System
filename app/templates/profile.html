@@ -1,0 +1,51 @@
+{% extends 'layout.html' %}
+
+{% block title %}My Profile{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="card p-4">
+      <h2>My Profile</h2>
+      <p class="text-muted">Update your account details. Your role and facility or Community Health Unit assignment are managed by an administrator.</p>
+      <dl class="row">
+        <dt class="col-sm-4">Role</dt>
+        <dd class="col-sm-8">{{ worker.role }}</dd>
+        <dt class="col-sm-4">Assignment</dt>
+        <dd class="col-sm-8">{{ worker_affiliation }}</dd>
+      </dl>
+      <form id="profile-form">
+        <label class="form-label" for="username">Username</label>
+        <input id="username" class="form-control mb-3" value="{{ worker.username }}" required>
+        <label class="form-label" for="password">New password</label>
+        <input id="password" type="password" class="form-control" minlength="6" placeholder="Leave blank to keep current password">
+        <button class="btn btn-primary mt-4" type="submit">Save Profile</button>
+      </form>
+      <div id="profile-response" class="alert mt-3 d-none"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById('profile-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const password = document.getElementById('password').value;
+    const payload = {username: document.getElementById('username').value};
+    if (password) payload.password = password;
+    const response = document.getElementById('profile-response');
+    const res = await fetch('/api/v1/profile', {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+      credentials: 'same-origin',
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+    response.classList.remove('d-none', 'alert-danger', 'alert-success');
+    response.classList.add(res.ok ? 'alert-success' : 'alert-danger');
+    response.textContent = res.ok ? 'Profile updated successfully.' : (result.error || 'Unable to update profile.');
+    if (res.ok) document.getElementById('password').value = '';
+  });
+</script>
+{% endblock %}

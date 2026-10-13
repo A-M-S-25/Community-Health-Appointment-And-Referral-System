@@ -1,0 +1,32 @@
+{% extends 'layout.html' %}
+{% block title %}Edit Community Health Unit{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div><h2 class="mb-0">Edit Community Health Unit</h2><p class="text-muted mb-0">{{ unit.name }}</p></div>
+  <a href="/admin/community-units" class="btn btn-outline-primary">Back to CHUs</a>
+</div>
+<div class="card p-4">
+  <form id="unit-edit-form">
+    <div class="row g-3">
+      <div class="col-md-6"><label class="form-label">Unit Name</label><input id="name" class="form-control" value="{{ unit.name }}" required></div>
+      <div class="col-md-6"><label class="form-label">Location</label><input id="location" class="form-control" value="{{ unit.location }}" required></div>
+      <div class="col-md-3 form-check ms-2"><input id="is-active" class="form-check-input" type="checkbox" {% if unit.is_active %}checked{% endif %}><label class="form-check-label" for="is-active">Active unit</label></div>
+    </div>
+    <div class="mt-4"><button class="btn btn-primary" type="submit">Save Changes</button> <a href="/admin/community-units" class="btn btn-outline-secondary">Cancel</a></div>
+  </form>
+  <div id="response" class="alert d-none mt-3"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('unit-edit-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const res = await fetch('/api/v1/admin/community-units/{{ unit.community_unit_id }}', {
+    method: 'PATCH', headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+    body: JSON.stringify({name: document.getElementById('name').value, location: document.getElementById('location').value, is_active: document.getElementById('is-active').checked})
+  });
+  const result = await res.json(); const response = document.getElementById('response'); response.className = `alert ${res.ok ? 'alert-success' : 'alert-danger'} mt-3`; response.textContent = res.ok ? 'Community health unit updated successfully.' : (result.error || 'Unable to update community health unit.');
+  if (res.ok) window.location.href = '/admin/community-units';
+});
+</script>
+{% endblock %}

@@ -1,0 +1,180 @@
+{% extends 'layout.html' %}
+
+{% block title %}User Management{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2 class="mb-0">User Management</h2>
+    <p class="text-muted mb-0">Create and manage system user accounts</p>
+  </div>
+  <a href="/admin" class="btn btn-outline-primary">Back to Dashboard</a>
+</div>
+
+<div class="card p-4 mb-4">
+  <h4>Add New User</h4>
+  <form id="worker-form">
+    <div class="row g-3 mt-2">
+      <div class="col-md-4">
+        <label class="form-label">Username</label>
+        <input id="username" type="text" class="form-control" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Password</label>
+        <input id="password" type="password" class="form-control" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Role</label>
+        <select id="role" class="form-select">
+          <option value="L1">L1</option>
+          <option value="L2">L2</option>
+          <option value="L3">L3</option>
+          <option value="L4">L4</option>
+          <option value="L5">L5</option>
+          <option value="L6">L6</option>
+          <option value="Admin">Admin (system only)</option>
+        </select>
+      </div>
+      <div class="col-md-4" id="facility-field">
+        <label class="form-label">Facility ID</label>
+        <input id="facility-id" type="number" class="form-control" min="1">
+      </div>
+      <div class="col-md-4 d-none" id="community-unit-field">
+        <label class="form-label">Community Health Unit ID</label>
+        <input id="community-unit-id" type="number" class="form-control" min="1">
+      </div>
+    </div>
+    <button type="submit" class="btn btn-success mt-3">Create Worker</button>
+  </form>
+  <div id="worker-response" class="alert mt-3 d-none"></div>
+  {% if active_admin_count == 1 %}
+  <div class="alert alert-warning mt-3 mb-0">
+    This system has one active administrator. The last active administrator cannot be deactivated or changed.
+  </div>
+  {% endif %}
+</div>
+
+<div class="card p-4">
+  <h4>User List</h4>
+  <div class="table-responsive mt-3">
+    <table class="table table-striped align-middle">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Username</th>
+          <th>Role</th>
+          <th>Facility / Community Unit</th>
+          <th>Active</th>
+          <th>Last Login</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for worker in workers %}
+        <tr>
+          <td>{{ worker.worker_id }}</td>
+          <td>{{ worker.username }}</td>
+          <td>{{ worker.role }}</td>
+          <td>
+            {% if worker.role == 'Admin' %}System administration
+            {% elif worker.role == 'L1' %}CHU {{ worker.community_unit_id }}
+            {% else %}Facility {{ worker.facility_id }}{% endif %}
+          </td>
+          <td>
+            <button class="btn btn-sm {{ 'btn-outline-danger' if worker.is_active else 'btn-outline-success' }}"
+                    {% if worker.role == 'Admin' and worker.is_active and active_admin_count == 1 %}disabled title="The last active administrator must remain active"{% endif %}
+                    onclick="toggleWorker({{ worker.worker_id }}, {{ 'false' if worker.is_active else 'true' }})">
+              {{ 'Deactivate' if worker.is_active else 'Activate' }}
+            </button>
+          </td>
+          <td>{{ worker.last_login_at or 'Never' }}</td>
+          <td>
+            <a class="btn btn-sm btn-outline-secondary" href="/admin/workers/{{ worker.worker_id }}/edit">Edit</a>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteUser({{ worker.worker_id }})">Delete</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="text-center text-muted">No workers registered yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const workerForm = document.getElementById('worker-form');
+  const workerResponse = document.getElementById('worker-response');
+  const role = document.getElementById('role');
+  const facilityField = document.getElementById('facility-field');
+  const communityUnitField = document.getElementById('community-unit-field');
+  function updateAssignmentFields() {
+    const isL1 = role.value === 'L1';
+    const isAdmin = role.value === 'Admin';
+    facilityField.classList.toggle('d-none', isL1);
+    communityUnitField.classList.toggle('d-none', !isL1);
+    facilityField.classList.toggle('d-none', isL1 || isAdmin);
+    document.getElementById('facility-id').required = !isL1 && !isAdmin;
+    document.getElementById('community-unit-id').required = isL1;
+  }
+  role.addEventListener('change', updateAssignmentFields);
+  updateAssignmentFields();
+
+  workerForm.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    const payload = {
+      username: document.getElementById('username').value,
+      password: document.getElementById('password').value,
+      role: document.getElementById('role').value,
+      facility_id: role.value === 'L1' || role.value === 'Admin' ? null : Number(document.getElementById('facility-id').value),
+      community_unit_id: role.value === 'L1' ? Number(document.getElementById('community-unit-id').value) : null
+    };
+
+    const res = await fetch('/api/v1/admin/workers', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': '{{ csrf_token() }}'
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify(payload)
+    });
+
+    const result = await res.json();
+    workerResponse.classList.remove('d-none', 'alert-danger', 'alert-success');
+    workerResponse.classList.add(res.ok ? 'alert-success' : 'alert-danger');
+    workerResponse.textContent = res.ok ? 'Worker created successfully.' : (result.error || 'Unable to create worker.');
+
+    if (res.ok) {
+      window.location.reload();
+    }
+  });
+
+  async function toggleWorker(id, active) {
+    await fetch(`/api/v1/admin/workers/${id}`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+      body: JSON.stringify({is_active: active})
+    });
+    window.location.reload();
+  }
+
+  async function deleteUser(id) {
+    if (!window.confirm('Delete this user? Existing audit, appointment, or referral records may prevent deletion.')) return;
+    const res = await fetch(`/api/v1/admin/workers/${id}`, {
+      method: 'DELETE',
+      headers: {'X-CSRFToken': '{{ csrf_token() }}'}
+    });
+    if (!res.ok) {
+      const result = await res.json();
+      window.alert(result.error || 'Unable to delete user.');
+      return;
+    }
+    window.location.reload();
+  }
+
+</script>
+{% endblock %}

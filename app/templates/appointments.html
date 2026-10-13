@@ -1,0 +1,241 @@
+{% extends 'layout.html' %}
+
+{% block title %}Appointments{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2>Appointments</h2>
+    <p class="text-muted mb-0">Book available appointment slots for referrals routed to your facility.</p>
+  </div>
+  <a href="/referrals" class="btn btn-outline-primary">Patient Referrals</a>
+</div>
+{% if session.get('worker_role') != 'Admin' %}
+<div class="card p-4 mb-4">
+  <h3>Open appointment slot</h3>
+  <p class="text-muted">Create slots at your facility so incoming referrals can be routed and booked.</p>
+  <form id="slot-form" class="row g-3 align-items-end">
+    <div class="col-md-5"><label class="form-label">Date and time</label><input id="slot-datetime" type="datetime-local" class="form-control" required></div>
+    <div class="col-md-2"><button class="btn btn-outline-primary" type="submit">Create slot</button></div>
+  </form>
+  <div id="slot-response" class="alert mt-3 d-none"></div>
+</div>
+{% endif %}
+<div id="appointments-list" class="row g-4">
+  <div class="text-muted">Loading routed referrals...</div>
+</div>
+<div class="card p-4 mt-4">
+  <h3>Available appointment slots</h3>
+  <div id="available-slots" class="table-responsive">
+    <div class="text-muted">Loading available slots...</div>
+  </div>
+</div>
+<div class="card p-4 mt-4">
+  <h3>Booked appointments</h3>
+  <div id="booked-appointments" class="table-responsive">
+    <div class="text-muted">Loading booked appointments...</div>
+  </div>
+</div>
+<div class="card p-4 mt-4">
+  <h3>Appointment history</h3>
+  <div id="appointment-history" class="table-responsive">
+    <div class="text-muted">Loading appointment history...</div>
+  </div>
+</div>
+{% endblock %}
+
+  {% block scripts %}
+  <script>
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+  async function loadAppointments() {
+    const response = await fetch('/api/v1/referrals', {credentials: 'same-origin'});
+    const referrals = await response.json();
+    const container = document.getElementById('appointments-list');
+    if (!response.ok) {
+      container.innerHTML = `<div class="alert alert-danger">${referrals.error || 'Unable to load referrals.'}</div>`;
+      return;
+    }
+    if (!referrals.length) {
+      container.innerHTML = '<div class="alert alert-info">No pending referrals are routed to your facility.</div>';
+      return;
+  }
+  container.innerHTML = referrals.map(referral => `
+    <div class="col-lg-6">
+      <div class="card p-4">
+        <h4>Referral #${referral.referral_id}</h4>
+        <p class="mb-1"><strong>Patient:</strong> <a href="/patients/${referral.patient_id}">${referral.patient_name}</a></p>
+        <p class="mb-3"><strong>Destination:</strong> ${referral.destination_facility}</p>
+        ${referral.status === 'Pending' ? `<div class="d-flex gap-2 mb-3">
+          <button class="btn btn-sm btn-success" onclick="decideReferral(${referral.referral_id}, 'accept')">Accept</button>
+          <button class="btn btn-sm btn-outline-danger" onclick="decideReferral(${referral.referral_id}, 'reject')">Reject</button>
+        </div>` : ''}
+        <div id="slots-${referral.referral_id}" class="text-muted">Loading available slots...</div>
+      </div>
+    </div>
+  `).join('');
+  await Promise.all(referrals.map(loadSlots));
+}
+async function loadBookedAppointments() {
+  const response = await fetch('/api/v1/appointments?status=Booked', {credentials: 'same-origin'});
+  const appointments = await response.json();
+  const container = document.getElementById('booked-appointments');
+  if (!response.ok) {
+    container.innerHTML = `<div class="alert alert-danger">${appointments.error || 'Unable to load appointments.'}</div>`;
+    return;
+  }
+  if (!appointments.length) {
+    container.innerHTML = '<div class="alert alert-info">No booked appointments at this facility.</div>';
+    return;
+  }
+  container.innerHTML = `
+    <table class="table table-striped align-middle">
+      <thead><tr><th>Patient</th><th>Date and time</th><th>Referral</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>${appointments.map(appointment => `
+        <tr>
+          <td><a href="/patients/${appointment.patient_id}">${appointment.patient_name}</a></td>
+          <td>${new Date(appointment.appointment_datetime).toLocaleString()}</td>
+          <td>#${appointment.referral_id}</td>
+          <td><span class="badge bg-primary">${appointment.status}</span></td>
+          <td>
+            <button class="btn btn-sm btn-success" onclick="updateAppointment(${appointment.booking_id}, 'Completed')">Mark complete</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="updateAppointment(${appointment.booking_id}, 'Cancelled')">Cancel no-show</button>
+          </td>
+        </tr>
+      `).join('')}</tbody>
+    </table>`;
+}
+async function loadAvailableSlots() {
+  const response = await fetch('/api/v1/appointment-slots?facility_id={{ current_worker.facility_id if current_worker and current_worker.facility_id else "all" }}', {credentials: 'same-origin'});
+  const slots = await response.json();
+  const container = document.getElementById('available-slots');
+  if (!response.ok) {
+    container.innerHTML = `<div class="alert alert-danger">${slots.error || 'Unable to load available slots.'}</div>`;
+    return;
+  }
+  if (!slots.length) {
+    container.innerHTML = '<div class="alert alert-info">No available appointment slots.</div>';
+    return;
+  }
+  container.innerHTML = `
+    <table class="table table-striped">
+      <thead><tr><th>Date and time</th><th>Status</th></tr></thead>
+      <tbody>${slots.map(slot => `
+        <tr><td>${new Date(slot.appointment_datetime).toLocaleString()}</td><td><span class="badge bg-success">${slot.status}</span></td></tr>
+      `).join('')}</tbody>
+    </table>`;
+}
+async function loadAppointmentHistory() {
+  const responses = await Promise.all([
+    fetch('/api/v1/appointments?status=Completed', {credentials: 'same-origin'}),
+    fetch('/api/v1/appointments?status=Cancelled', {credentials: 'same-origin'})
+  ]);
+  const results = await Promise.all(responses.map(response => response.json()));
+  const container = document.getElementById('appointment-history');
+  if (responses.some(response => !response.ok)) {
+    container.innerHTML = '<div class="alert alert-danger">Unable to load appointment history.</div>';
+    return;
+  }
+  const appointments = results.flat();
+  if (!appointments.length) {
+    container.innerHTML = '<div class="alert alert-info">No completed or cancelled appointments.</div>';
+    return;
+  }
+  container.innerHTML = `
+    <table class="table table-striped">
+      <thead><tr><th>Patient</th><th>Date and time</th><th>Referral</th><th>Status</th></tr></thead>
+      <tbody>${appointments.map(appointment => `
+        <tr>
+          <td><a href="/patients/${appointment.patient_id}">${appointment.patient_name}</a></td>
+          <td>${new Date(appointment.appointment_datetime).toLocaleString()}</td>
+          <td>#${appointment.referral_id}</td>
+          <td><span class="badge ${appointment.status === 'Completed' ? 'bg-success' : 'bg-secondary'}">${appointment.status}</span></td>
+        </tr>
+      `).join('')}</tbody>
+    </table>`;
+}
+async function loadSlots(referral) {
+  if (referral.status !== 'Accepted') {
+    document.getElementById(`slots-${referral.referral_id}`).innerHTML = '<span class="text-muted">Accept the referral before booking an appointment.</span>';
+    return;
+  }
+  const response = await fetch(`/api/v1/appointment-slots?facility_id=${referral.destination_facility_id}`, {credentials: 'same-origin'});
+  const slots = await response.json();
+  const target = document.getElementById(`slots-${referral.referral_id}`);
+  if (!response.ok || !slots.length) {
+    target.innerHTML = '<span class="text-muted">No available slots.</span>';
+    return;
+  }
+  target.innerHTML = slots.map(slot => `
+    <div class="border rounded p-2 mb-2 d-flex justify-content-between align-items-center">
+      <span>${new Date(slot.appointment_datetime).toLocaleString()}</span>
+      <button class="btn btn-sm btn-primary" onclick="bookSlot(${slot.slot_id}, ${referral.referral_id})">Confirm Booking</button>
+    </div>
+  `).join('');
+}
+async function decideReferral(referralId, decision) {
+  const response = await fetch(`/api/v1/referrals/${referralId}/decision`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+    credentials: 'same-origin',
+    body: JSON.stringify({decision})
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    const card = document.getElementById(`slots-${referralId}`);
+    card.className = 'alert alert-danger';
+    card.textContent = result.error || 'Unable to update referral.';
+    return;
+  }
+  await loadAppointments();
+}
+async function bookSlot(slotId, referralId) {
+  const response = await fetch(`/api/v1/appointment-slots/${slotId}/book`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+    credentials: 'same-origin',
+    body: JSON.stringify({referral_id: referralId})
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    alert(result.error || 'Unable to confirm booking.');
+    return;
+  }
+  await Promise.all([loadAppointments(), loadBookedAppointments(), loadAvailableSlots(), loadAppointmentHistory()]);
+}
+async function updateAppointment(bookingId, status) {
+  const response = await fetch(`/api/v1/referral-appointments/${bookingId}/status`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+    credentials: 'same-origin',
+    body: JSON.stringify({status})
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    alert(result.error || 'Unable to update appointment.');
+    return;
+  }
+  await Promise.all([loadAppointments(), loadBookedAppointments(), loadAvailableSlots(), loadAppointmentHistory()]);
+}
+loadAppointments();
+loadBookedAppointments();
+loadAvailableSlots();
+loadAppointmentHistory();
+const slotForm = document.getElementById('slot-form');
+if (slotForm) {
+  slotForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const response = await fetch('/api/v1/appointment-slots', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+      credentials: 'same-origin',
+      body: JSON.stringify({facility_id: {{ current_worker.facility_id if current_worker and current_worker.facility_id else 'null' }}, appointment_datetime: document.getElementById('slot-datetime').value})
+    });
+    const result = await response.json();
+    const alert = document.getElementById('slot-response');
+    alert.className = `alert mt-3 ${response.ok ? 'alert-success' : 'alert-danger'}`;
+    alert.textContent = response.ok ? 'Appointment slot created.' : (result.error || 'Unable to create slot.');
+    if (response.ok) { document.getElementById('slot-datetime').value = ''; await Promise.all([loadAppointments(), loadBookedAppointments(), loadAvailableSlots(), loadAppointmentHistory()]); }
+  });
+}
+</script>
+{% endblock %}
